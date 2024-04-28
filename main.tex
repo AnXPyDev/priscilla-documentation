@@ -1,0 +1,64 @@
+\documentclass{article}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{minted}
+\usepackage{glossaries}
+
+
+\renewcommand{\figurename}{Obrázok}
+
+\graphicspath{ {../images/} }
+
+\geometry{margin=0.75in}
+
+\begin{document}
+
+\title{Dokumentácia bezpečného testovacieho systému}
+\author{Jozef Komáromy}
+
+\maketitle
+
+\section{Prehľad problému}
+
+Účelom tohto projektu je vytvoriť testovací systém pre školu, ktorý zabezpečí počítač testovaného študenta tak, aby nemohol podvádzať. Vo vačšine prípadov prebieha digitálne testovanie prostredníctvom web-aplikácie v prehliadači (napr. Google Forms, Moodle, a pod.). Tieto spôsoby testovania sú často nezabezpečené proti najjednoduchším spôsobom podvádzania. Testovaná osoba si napríklad môže jednoducho otvoriť ďaľší tab a vyhladávať správne odpovede na Googli. Aby sme vyriešili problém podvádznia bez priameho zásahu do testovacieho prostredia, potrebujeme vyvinúť aplikáciu, ktorá nahradí úlohu tradičného webového prehliadaču pri testovaní. Testovacie prostredie teda bude spustené cez túto aplikáciu. Možnosti testovanej osoby sú obmedzené tak, že nemôže na počítači zobrazovať iné aplikácie, a prechádzať na web-stránky ktoré mu neboli explicitne povolené.
+
+\section{Riešenie}
+
+Mojím riešením tohto problému je sada softvéru pozostavájúca z 4 častí:
+\begin{enumerate}
+  \item \emph{Client}
+  \item \emph{Vanguard}
+  \item \emph{Server}
+  \item \emph{Supervisor}
+\end{enumerate}
+
+\subsection{Client}
+
+Aplikácia spustená na počítači testovanej osoby (ďalej študent), v ktorej je spustené webové testovacie prostredie. Po otvorení aplikácie má študent možnosť pripojiť sa do miestnosti vytvorenej dohliadajúcou osobou (ďalej učiteľ). Po pripojení do miestnosti sa načíta konfigurácia pre túto miestnosť a zobrazí sa testovacie prostredie. Taktiež sa spustí program Vanguard, ktorý upozorňuje na podozrivé správanie študenta. Informácie o podozrivom správaní sa ďalej posielajú na Server.
+
+\subsection{Vanguard}
+
+Pomocný program pre testovaciu aplikáciu, ktorý sleduje akcie študenta vrámci celého operačného systému. Ak vyhodnotí že správanie študenta je podozrivé, posúva túto informáciu do aplikácie Client. Zahŕňa viacero služieb, ktoré sledujú napr. aké okno je v popredí systému.
+
+\subsection{Server}
+
+Softvér bežiaci na vzdialenom zariadení, slúži zväčša ako komunikačná vrstva medzi aplikáciami Client a Supervisor. Taktiež sa tu uchovávajú informácie o miestnostiach, a študentoch v nich. Poskytuje aj bezpečné prihlásenie učiteľa do systému, a pripojenie študenta do miestnosti.
+
+\subsection{Supervisor}
+
+Webová aplikácia ktorá učiteľovy poskytuje zobrazenie informácií získaných zo Serveru. Učiteľ sa prihlási do systému a následne môže vytvárať miestnosti, monitorovať študentov pripojených do miestnosti, a diaľkovo ovládať ich klientskú aplikáciu.
+
+\section{Špecifikácia}
+
+\subsection{Client}
+
+\subsection{Vanguard}
+
+\subsection{Server}
+
+\subsection{Supervisor}
+
+
+\end{document}
