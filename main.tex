@@ -3,9 +3,9 @@
 \usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage{caption}
+\usepackage{pygmentex}
 \usepackage{minted}
 \usepackage{glossaries}
-
 
 \renewcommand{\figurename}{Obrázok}
 
@@ -57,6 +57,54 @@ Webová aplikácia ktorá učiteľovy poskytuje zobrazenie informácií získan�
 \subsection{Vanguard}
 
 \subsection{Server}
+
+\subsubsection{Technológie}
+Server je implementovaný v programovacom jazyku \emph{PHP} pre webový server \emph{Apache} a databázu \emph{MySQL/MariaDB}.
+\newline
+Pre komunikáciu s aplikáciou klienta a applikáciou Supervisor sa používajú \emph{POST} requesty cez protokol \emph{HTTP(S)} kde aj klient a server posielajú dáta v formáte \emph{JSON}.
+
+\subsubsection{Konfigurácia}
+
+\subsubsection{Databáza}
+
+Databázová schéma obsahuje nasledovné entity:
+
+\subsubsection{Vendor}
+
+\newcommand{\filedesc}[1]{\vspace{0.3cm} \noindent \textbf{#1}}
+
+\emph{PHP} programy v adresáry \emph{/vendor} niesu prístupné verejnosti, slúžia ako knižnica pre endpointy.
+
+\filedesc{autoload.php} - Automaticky načítaný pre každý request na endpoint, načíta premenné prostredia zo súboru \emph{env.ini}, a includne \emph{util.php}.
+
+\filedesc{Endpoint.php} (\emph{abstract class}) - Je abstrakciou pre koncový bod servera. Automaticky dekoduje request body z formátu \emph{JSON} do php array. Taktiež zachytáva chyby, aby neboli viditelné pre klienta. Vždy vracia výsledok vo formáte \emph{JSON}, ktorý vždu obsahuje hodnotu \emph{code}, ktorá reprezentuje úspešnosť požiadavky. Ak \emph{code = 0}, znamená to, že operácia prebehla úspešne, nenulové hodnoty znamenajú chybu. Ak nastala chyba jej popis sa nachádza v hodnote \emph{message}.
+
+\begin{minted}{json}
+  // príklad výsledku úspešnej operácie
+  {
+    "code": 0,
+    "data": {...}
+  }
+
+  // príklad výsledku operácie s chybou
+  {
+    "code": 1,
+    "message": "Input argument username not provided"
+  }
+\end{minted}
+
+\filedesc{Response.php} (\emph{interface}) - Reprezentuje odpoveď servera, obsahuje kód odpovede a dáta odpovede.
+\begin{quote}
+  \filedesc{ResponseSuccess} - má kód odpovede 0, a dáta reprezentujúce výsledok operácie
+
+  \filedesc{ResponseError} - má kód odpovede 0, a dáta obsahujúce iba správu (\emph{message}), ktorá popisuje chybu ktorá nastala
+\end{quote}
+
+\filedesc{Database.php} (\emph{class}) - Pripojenie na databázu
+
+\filedesc{Auth.php} - Kryptografické funkcie na generovanie bezpečných hesiel, kontrola hesla, hashovanie, a taktiež interakcie s databázou týkajúce sa autentikácie používateľa.
+
+\subsubsection{Endpointy}
 
 \subsection{Supervisor}
 
