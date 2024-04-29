@@ -83,7 +83,7 @@ Databázová schéma obsahuje nasledovné entity:
   // príklad výsledku úspešnej operácie
   {
     "code": 0,
-    "data": {...}
+    // Výsledok úspešnej operácie 
   }
 
   // príklad výsledku operácie s chybou
@@ -104,7 +104,35 @@ Databázová schéma obsahuje nasledovné entity:
 
 \filedesc{Auth.php} - Kryptografické funkcie na generovanie bezpečných hesiel, kontrola hesla, hashovanie, a taktiež interakcie s databázou týkajúce sa autentikácie používateľa.
 
+\filedesc{UserEndpoint.php} (\emph{abstract class}) - Endpoint ktorý najskôr vykoná autentikáciu použivateľa, a ak vyhodnotí že je prihlásený, vykoná operáciu. V request body (\emph{JSON}) musí byť poskytnutá hodnota \emph{session}.
+
+\begin{minted}{json}
+  // príklad vstupu
+  { "session": "QWBUP9WcuBt6zVjPo4YOwG3d4SLBzehN", /* argumenty pre špecifický endpoint */ }
+
+  // výstup ak nebol poskytnutý session
+  { "code": 1, "message": "Not logged in" }
+  
+  // výstup ak je session nesprávny
+  { "code": 1, "message": "Invalid session" }
+\end{minted}
+
+\filedesc{ClientEndpoint.php} (\emph{abstract class}) - Endpoint ktorý podobne ako \emph{UserEndpoint} overí používaťeľa na základe parametru \emph{secret}.
+
+\begin{minted}{json}
+  // príklad vstupu
+  { "secret": "VvJnJHmaderb", /* argumenty pre špecifický endpoint */ }
+  
+  // výstup ak nebol poskytnutý secret
+  { "code": 1, "message": "No secret provided" }
+  
+  // výstup ak je secret nesprávny
+  { "code": 1, "message": "Invalid secret" }
+\end{minted}
+
 \subsubsection{Endpointy}
+
+
 
 \subsection{Supervisor}
 
