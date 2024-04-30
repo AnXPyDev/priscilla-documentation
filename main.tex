@@ -56,16 +56,68 @@ Webová aplikácia ktorá učiteľovy poskytuje zobrazenie informácií získan�
 
 \subsection{Client}
 
+\subsubsection{Technológie}
+
+Aplikácia klienta je implementovaná v programovacom jazyku \emph{TypeScript} (kompilovaný do \emph{JavaScript}). Používa \emph{UI} framework \emph{Electron} a frontendový framework \emph{Vue}. Pre komunikáciu so serverom je použitá knižnica \emph{Axios}.
+
 \subsection{Vanguard}
+
+\subsubsection{Technológie}
+
+Program Vanguard je implementovaný v programovacom jazyku \emph{C} v prostredí \emph{mingw64}. Používa knižnicu \emph{winpthreads} (port pthreads.h pre OS Windows), a \emph{Windows API}.
+
+\subsubsection{Komunikácia}
+
+Program je spustený ako podproces aplikácie klienta. Komunikácia s klientom sa realizuje posielaním binárny balíkov informácií na štandardnom vstupe a výstupe.
+
+\subsubsection{Služby}
 
 \subsection{Server}
 
 \subsubsection{Technológie}
-Server je implementovaný v programovacom jazyku \emph{PHP} pre webový server \emph{Apache} a databázu \emph{MySQL/MariaDB}.
-\newline
-Pre komunikáciu s aplikáciou klienta a applikáciou Supervisor sa používajú \emph{POST} requesty cez protokol \emph{HTTP(S)} kde aj klient a server posielajú dáta v formáte \emph{JSON}.
+Server je implementovaný v programovacom jazyku \emph{PHP} pre webový server \emph{Apache} a databázu \emph{MySQL/MariaDB}. Pre komunikáciu s databázou sa používa vstavaná \emph{PHP} knižnica \emph{PDO}.
+Pre zamedzenie prístupu neoprávneným requestom je použitý vstavaný \emph{Apache} modul \emph{mod{\_}rewrite}.
+
+Pre komunikáciu s aplikáciou klienta a applikáciou Supervisor sa používajú \emph{POST} requesty cez protokol \emph{HTTP(S)} kde klient a server posielajú dáta v formáte \emph{JSON}.
 
 \subsubsection{Konfigurácia}
+
+Konfiguračný súbor pre webový server \emph{Apache} \file{httpd.conf} je vytvorený zo šablónového súboru \file{httpd.tpl.conf} . Pri manuálnej konfigurácií treba do tohto súboru doplniť za \emph{ROOT} absolutnu cestu ku koreňovému priečinku projektu v ktorom sa bude nachádzať \file{httpd.conf}, za \emph{LOCATION} treba doplniť http cestu na ktorej bude rezidovať adresár \file{/public}. Po doplnení informácií do súboru \file{httpd.conf} treba túto konfiguráciu zahrnúť do hlavnej konfigurácie \emph{Apache}, napr.:
+
+\begin{minted}{bash}
+  Include "/var/www/priscilla-server/httpd.conf"
+\end{minted}
+
+\filedesc{httpd.conf} - V súbore \file{httpd.conf} je nastavená premenná prostredia \emph{SERVER{\_}ROOT} na vyššie spomínanú cestu. Pokyn \mintinline{bash}{php_value include_path "ROOT/vendor"} hovorí \emph{PHP} interpreteru aby hladal importované knižnice v adresáry \file{vendor}. Pokyn \mintinline{bash}{php_value auto_prepend_file "ROOT/vendor/autoload.php"} hovorí \emph{PHP} interpreteru aby vždy najskôr spustil súbor \file{autoload.php} pred požadovaným php skriptom.
+
+\filedesc{env.ini} - Server sa konfiguruje pomocou súboru \file{env.ini} , v ktorom treba nastaviť nasledujúce premenné.
+
+\begin{quote}
+  \filedesc{DATABASE{\_}PROTO} - druh databázy, netreba meniť pôvodnú hodnotu \mintinline{ini}{"mysql"}
+
+  \filedesc{DATABASE{\_}HOST} - adresa zariadenia na ktorom sa nachádza databázový server 
+
+  \filedesc{DATABASE{\_}PORT} - port na ktorom je databázový server spustený
+
+  \filedesc{DATABASE{\_}NAME} - názov databázy
+
+  \filedesc{DATABASE{\_}USER} - prihlasovacie meno použivateľa databázy
+
+  \filedesc{DATABASE{\_}PASSWORD} - heslo použivateľa databázy
+
+  Príklad nastavenia pre \emph{XAMPP}:
+
+  \begin{minted}{ini}
+    DATABASE_PROTO="mysql"
+    DATABASE_HOST="localhost"
+    DATABASE_PORT="3306"
+    DATABASE_NAME="supervisor"
+    DATABASE_USER="root"
+    DATABASE_PASSWORD=""
+  \end{minted}
+\end{quote}
+
+\filedesc{autoload.php} - skript načíta konfiguráciu zo súboru \file{env.ini}
 
 \subsubsection{Databáza}
 
@@ -651,6 +703,7 @@ Endpointy sa nachádzajú v adresáry \emph{/public}. Sú rozdelené do podprie�
 
 \subsection{Supervisor}
 
-
+\subsubsection{Technológie}
+Aplikácia \emph{Supervisor} je webová aplikácia implementovaná v programovacom jazyku \emph{TypeScript} (kompilovaný do \emph{JavaScript}). Používa frontendový framework \emph{Vue}. Pre komunikáciu so serverom je použitá knižnica \emph{Axios}.
 
 \end{document}
