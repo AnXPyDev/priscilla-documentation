@@ -8,6 +8,8 @@
 \usepackage{glossaries}
 
 \renewcommand{\figurename}{Obrázok}
+\newcommand{\filedesc}[1]{\vspace{0.3cm} \noindent \textbf{#1}}
+\newcommand{\file}[1]{\emph{#1}}
 
 \graphicspath{ {../images/} }
 
@@ -15,7 +17,7 @@
 
 \begin{document}
 
-\title{Dokumentácia bezpečného testovacieho systému}
+\title{Bezpečný testovací systém}
 \author{Jozef Komáromy}
 
 \maketitle
@@ -67,15 +69,203 @@ Pre komunikáciu s aplikáciou klienta a applikáciou Supervisor sa používajú
 
 \subsubsection{Databáza}
 
-Databázová schéma obsahuje nasledovné entity:
+Databázová schéma sa nachádza v súbore \file{/database/schema.sql}. Obsahuje nasledovné entity.
+
+\filedesc{user} (ďalej používateľ, učiteľ) - Reprezentuje učiteľa ktorý sa vie prihlásiť do systému, vytvárať miestnosti, sledovať a dialkovo ovládať klientov.
+\begin{quote}
+
+\begin{minted}{sql}
+create table `user` (
+    `id` int primary key auto_increment,
+    `username` varchar(16) unique not null,
+    `displayname` varchar(32) not null,
+
+    `password_hash` varchar(64) not null,
+    `password_salt` varchar(32) not null
+);
+\end{minted}
+
+\filedesc{username} - prihlasovacie meno použivateľa
+
+\filedesc{displayname} - meno používateľa, ktoré sa zobrazuje napríklad v názve miestnosti
+
+\filedesc{password{\_}salt} - náhodne generovaný string na strane servera, ktorý sa pridáva k heslu pri hashovaní pre zvýšenie bezpečnosti
+
+\filedesc{password{\_}hash} - zahashované (algo. \emph{SHA256}) heslo + \emph{password{\_}salt} , používa sa na overenie používateľa pri prihlásení
+
+\end{quote}
+
+\filedesc{session} - Reprezentuje reláciu používateľa, ktorá vznikne prihlásením a zanikne odhlásením.
+
+\begin{quote}
+
+\begin{minted}{sql}
+create table `session` (
+    `id` varchar(32) primary key,
+    `user_id` int not null,
+
+    foreign key (`user_id`) references `user`(`id`)
+);
+\end{minted}
+
+\filedesc{id} - Náhodne generovaný string s dĺžkou 32 znakov. Vytvori sa pri prihlásení používateľa. Používa sa pre overenie používateľa pri requestoch na \emph{UserEndpoint}
+
+\end{quote}
+
+\filedesc{room} - Reprezentuje miestnosť v ktorej "prebieha" testovanie. Miestnosť vytvára používateľ. Do miestnosti sa pripájajú klienti pomocou \emph{join{\_}code} ktorý následne posielajú na server eventy ktoré budú v databáze prepojené s miestnosťou do ktorej patrí klient. Používateľ po vytvorení miestnosti môže odoberať eventy vytvorené klientami pomocou \emph{watch{\_}code}
+
+\begin{quote}
+  
+  \begin{minted}{sql}
+    create table `room` (
+      `id` int primary key auto_increment,
+      `name` varchar(32) not null,
+      `join_code` varchar(16) not null,
+      `watch_code` varchar(16) not null,
+      `config` json not null,
+
+      `owner_id` int not null,
+      foreign key (`owner_id`) references `user`(`id`)
+    );
+  \end{minted}
+
+  \filedesc{join{\_}code} - Náhodne generovaný string, dlhý 6 znakov. Vznikne pri vytvorení miestnosti. Učiteľ tento kód poskytne študentom aby sa mohli pripojiť do miestnosti.
+
+  \filedesc{watch{\_}code} - Náhodne generovaný string, dlhý 12 znakov. Vznikne pri vytvorení miestnosti. Používa sa pri overení oprávnenia používateľa sledovať miestnosť pri requestoch na \emph{WatchEndpoint}
+
+  \filedesc{config} - Konfigurácia aplikácie \emph{Client} ktorá mu bude poskytnutá keď sa pripojí do miestnosti.
+  
+  \filedesc{owner{\_}id} - \emph{id} používateľa, ktorý vytvoril miestnosť
+
+\end{quote}
+
+\filedesc{client} - Reprezentuje študenta, ktorý sa pripojil do miestnosti. Treba podotknúť, že študent si v systéme nevytvára účet, pripája sa do každej miestnosti samostatne. Každý klient patrí iba jednej miestnosti.
+
+\begin{quote}
+  \begin{minted}{sql}
+    create table `client` (
+        `id` int primary key auto_increment,
+        `ip_address` varchar(32) not null,
+        `name` varchar(32) not null,
+        `secret` varchar(32) not null,
+        `state` json default('{}'),
+
+        `room_id` int not null,
+        foreign key (`room_id`) references `room`(`id`)
+    );
+  \end{minted}
+
+  \filedesc{secret} - Náhodne generovaný string, dlhý 32 znakov. Vznikne pri prihlásení klienta do miestnosti. Používa sa pri overení klienta pri requestoch na \emph{ClientEndpoint}
+
+  \filedesc{state} - Stav klienta. Periodicky sa aktualizuje cez endpoint \file{/client/pushstate}.
+
+\end{quote}
+
+\filedesc{client{\_}event} - Reprezentuje udalosť ktorá sa stala na strane klienta. Môže to byť napríklad oznámenie o tom, že študent porušil pravidlá testu, úspešne sa prihlásil do testovacieho prostredia, že už test dokončil, alebo to môže byť odpoveď na správu (\emph{message}) od učiteľa.
+
+\begin{quote}
+
+  \begin{minted}{sql}
+    create table `client_event` (
+        `id` int primary key auto_increment,
+        `created` datetime not null default(now()),
+        `data` json not null,
+        
+        `client_id` int not null,
+        `room_id` int not null,
+
+        foreign key (`client_id`) references `client`(`id`),
+        foreign key (`room_id`) references `room`(`id`)
+    );
+  \end{minted}
+
+  \filedesc{data} - podrobnosti eventu vo formáte \emph{JSON}, napr.:
+
+  \begin{minted}{json}
+    {
+      "module": "Vanguard",
+      "timestamp": "2024-04-27T03:26:34.848Z",
+      "severity": 3,
+      "message": "Wrong window in foreground",
+      "data": {
+        "handle": "0404010000000000",
+        "title": "Google - Firefox"
+      }
+    }
+  \end{minted}
+
+\end{quote}
+
+\filedesc{room{\_}event} - Reprezentuje udalosť ktorá sa týka miestnosti. Môže to byť napríklad oznámenie o tom, že sa študent pridal alebo odpojil z miestnosti.
+
+\begin{quote}
+
+  \begin{minted}{sql}
+    create table `room_event` (
+        `id` int primary key auto_increment,
+        `created` datetime not null default(now()),
+        `data` json not null,
+
+        `client_id` int,
+        `room_id` int not null,
+
+        foreign key (`client_id`) references `client`(`id`),
+        foreign key (`room_id`) references `room`(`id`)
+    );
+  \end{minted}
+
+  \filedesc{client{\_}id} - \emph{not null} pretože event sa nemusí týkať klienta. Napríklad ak to je oznámenie o vytvorení miestnosti.
+
+  \filedesc{data} - podrobnosti eventu vo formáte \emph{JSON}, napr.:
+
+  \begin{minted}{json}
+    { "message": "Client 'Jozef Komaromy' joined the room" }
+    { "message": "Room created" }
+  \end{minted}
+
+\end{quote}
+
+\filedesc{message} - Správa zo strany učiteľa pre klienta. Zvyčajne to je pokyn pre aplikáciu klienta, aby napríklad zablokovala prístup študentovy, alebo naopak odblokovala.
+
+\begin{quote}
+  \begin{minted}{sql}
+    create table `message` (
+        `id` int primary key auto_increment,
+        `data` json not null,
+
+        `client_id` int not null,
+
+        foreign key (`client_id`) references `client`(`id`)
+    )
+  \end{minted}
+  
+  \filedesc{data} - pokyny pre klientskú aplikáciu vo formáte \emph{JSON}, napr.:
+
+  \begin{minted}{json}
+    { "action": "lock" }
+    { "action": "unlock" }
+    { "action": "clear_warning" }
+  \end{minted}
+
+\end{quote}
 
 \subsubsection{Vendor}
 
-\newcommand{\filedesc}[1]{\vspace{0.3cm} \noindent \textbf{#1}}
 
-\emph{PHP} programy v adresáry \emph{/vendor} niesu prístupné verejnosti, slúžia ako knižnica pre endpointy.
+\emph{PHP} skripty v adresáry \file{/vendor} niesu prístupné verejnosti, slúžia ako knižnica pre endpointy.
 
-\filedesc{autoload.php} - Automaticky načítaný pre každý request na endpoint, načíta premenné prostredia zo súboru \emph{env.ini}, a includne \emph{util.php}.
+\filedesc{autoload.php} - Automaticky načítaný pre každý request na endpoint, načíta premenné prostredia zo súboru \file{env.ini}, a includne \file{util.php}.
+
+\filedesc{Response.php} (\emph{interface}) - Reprezentuje odpoveď servera, obsahuje kód odpovede a dáta odpovede.
+\begin{quote}
+  \filedesc{ResponseSuccess} - má kód odpovede 0, a dáta reprezentujúce výsledok operácie
+
+  \filedesc{ResponseError} - má kód odpovede 0, a dáta obsahujúce iba správu (\emph{message}), ktorá popisuje chybu ktorá nastala
+\end{quote}
+
+\filedesc{Database.php} (\emph{class}) - Pripojenie na databázu pomocou knižnice vstavanej \emph{PHP} knižnice \emph{PDO}, detaily pripojenia sú načítané zo súboru \file{env.ini}
+
+\filedesc{Auth.php} - Kryptografické funkcie na generovanie bezpečných hesiel, kontrola hesla, hashovanie, a taktiež interakcie s databázou týkajúce sa autentikácie používateľa.
 
 \filedesc{Endpoint.php} (\emph{abstract class}) - Je abstrakciou pre koncový bod servera. Automaticky dekoduje request body z formátu \emph{JSON} do php array. Taktiež zachytáva chyby, aby neboli viditelné pre klienta. Vždy vracia výsledok vo formáte \emph{JSON}, ktorý vždu obsahuje hodnotu \emph{code}, ktorá reprezentuje úspešnosť požiadavky. Ak \emph{code = 0}, znamená to, že operácia prebehla úspešne, nenulové hodnoty znamenajú chybu. Ak nastala chyba jej popis sa nachádza v hodnote \emph{message}.
 
@@ -91,20 +281,15 @@ Databázová schéma obsahuje nasledovné entity:
     "code": 1,
     "message": "Input argument username not provided"
   }
+
+  // konvenčný výstup pri nezadaní požadovaných hodnôt pre vstupu
+  {
+    "code": 1,
+    "message": "Bad input"
+  }
 \end{minted}
 
-\filedesc{Response.php} (\emph{interface}) - Reprezentuje odpoveď servera, obsahuje kód odpovede a dáta odpovede.
-\begin{quote}
-  \filedesc{ResponseSuccess} - má kód odpovede 0, a dáta reprezentujúce výsledok operácie
-
-  \filedesc{ResponseError} - má kód odpovede 0, a dáta obsahujúce iba správu (\emph{message}), ktorá popisuje chybu ktorá nastala
-\end{quote}
-
-\filedesc{Database.php} (\emph{class}) - Pripojenie na databázu
-
-\filedesc{Auth.php} - Kryptografické funkcie na generovanie bezpečných hesiel, kontrola hesla, hashovanie, a taktiež interakcie s databázou týkajúce sa autentikácie používateľa.
-
-\filedesc{UserEndpoint.php} (\emph{abstract class}) - Endpoint ktorý najskôr vykoná autentikáciu použivateľa, a ak vyhodnotí že je prihlásený, vykoná operáciu. V request body (\emph{JSON}) musí byť poskytnutá hodnota \emph{session}.
+\filedesc{UserEndpoint.php} (\emph{abstract class extends Endpoint}) - Endpoint ktorý najskôr vykoná autentikáciu použivateľa, a ak vyhodnotí že je prihlásený, vykoná operáciu. V request body (\emph{JSON}) musí byť poskytnutá hodnota \emph{session}
 
 \begin{minted}{json}
   // príklad vstupu
@@ -117,7 +302,22 @@ Databázová schéma obsahuje nasledovné entity:
   { "code": 1, "message": "Invalid session" }
 \end{minted}
 
-\filedesc{ClientEndpoint.php} (\emph{abstract class}) - Endpoint ktorý podobne ako \emph{UserEndpoint} overí používaťeľa na základe parametru \emph{secret}.
+\filedesc{WatchEndpoint.php} (\emph{abstract class extends UserEndpoint}) - Endpoint ktorý overuje prístup používateľa k miestnosti. Pre overenie musí poskytnúť hodnotu \emph{watch{\_}code} ktorá je jedinečná pre každú miestnosť v systéme. Taktiež je potrebné poskytnúť \emph{session} pre overenie prihlasenia ako u \emph{UserEndpoint}
+
+\begin{minted}{json}
+  // príklad vstupu
+  {
+    "session": "QWBUP9WcuBt6zVjPo4YOwG3d4SLBzehN",
+    "watch_code": "oSWnHmyKgz32",
+    /* argumenty pre špecifický endpoint */
+  }
+  
+  { "code": 1, "message": "No watch code" } // výstup ak nebol poskytnutý watch_code
+  { "code": 1, "message": "Invalid watch code" } // výstup ak je watch_code nesprávny
+  
+\end{minted}
+
+\filedesc{ClientEndpoint.php} (\emph{abstract class extends Endpoint}) - Endpoint ktorý podobne ako \emph{UserEndpoint} overí používaťeľa na základe parametru \emph{secret}
 
 \begin{minted}{json}
   // príklad vstupu
@@ -132,9 +332,325 @@ Databázová schéma obsahuje nasledovné entity:
 
 \subsubsection{Endpointy}
 
+Endpointy sa nachádzajú v adresáry \emph{/public}. Sú rozdelené do podpriečinkov poďla obmedzenia prístupu. Pristup k endpointom je obmedzený súborom \emph{.htaccess}, a taktiež sú presmerované adresy bez prípony \emph{.php} na \emph{PHP} skripty (\emph{/client/joinroom} $\rightarrow$ \emph{/client/joinroom.php})
 
+\filedesc{/operator} - endpointy dostupné iba pre administrátora serveru, prístup je obmedzený súborom \emph{.htaccess} tak, aby mali prístup k tomuto priečinku iba requesty z adresy \emph{127.0.0.1}
+
+\begin{quote}
+  \filedesc{/operator/deploy} (\emph{extends Endpoint}) - Spustí na \emph{MySQL/MariaDB} servery \emph{SQL} skript \file{/database/schema.sql} , ktorý vytvorí tabulky v databáze.
+  
+  \filedesc{/operator/adduser} (\emph{extends Endpoint}) - Prida nového použivateľa. Vstupom sú hodnoty \emph{username}, \emph{password} a \emph{displayname} (ak nie je zadané, bude rovnaké ako \emph{username}). Taktiež overuje či už použivateľ s daným \emph{username} v systéme už neexistuje.
+
+  \begin{minted}{json}
+    // príklad vstupu
+    {
+      "username": "jskalka",
+      "password": "heslo123",
+      "displayname": "Ján Skalka"
+    }
+
+    // výstup
+    { "code": 0 } // používateľ bol pridaný
+    { "code": 1, "message": "Bad password" } // heslo nie je dostatočne silné
+    { "code": 1, "message": "User jskalka already exists" }
+  \end{minted}
+\end{quote}
+
+\filedesc{/info} - verejne dostupné endpointy, ktoré poskytujú informácie o servery.
+
+\begin{quote}
+  \filedesc{/info/features} (\emph{extends Endpoint}) - Pomôcka pri nastavovaní klienta, poskytuje informácie o nastavení rôznych služieb serveru, napr. akým spôsobom má klient posielať eventy.
+  \begin{minted}{json}
+    // príklad výstupu
+    {
+      "supervisor": {
+        "protocol": "http"
+      },
+      "messages": {
+        "protocol": "http-refresh"
+      }
+    }
+  \end{minted}
+\end{quote}
+
+\filedesc{/user} - Endpointy určené pre aplikáciu \emph{Supervisor} . Tykajú sa autentikácie používateľa (\emph{login}, \emph{logout}, \emph{info}), spravovania miestností (\emph{createroom}, \emph{getrooms}), sledovania udalostí týkajúcich sa miestnosti (\emph{getclients}, \emph{getevents}), a komunikácie s aplikáciou klienta (\emph{message}).
+
+\begin{quote}
+  \filedesc{/user/login} (\emph{extends Endpoint}) - Zabezpečuje prihlásenie používateľa podľa mena a hesla. Po úspešnom prihlásení vráti používateľovy session token ktorý použije pre overenie pri nasledujúcich requestoch. Session platí až do odhlásenia.
+  \begin{minted}{json}
+    // príklad vstupu
+    {
+      "username": "jskalka",
+      "password": "heslo123"
+    } 
+
+    // výstup ak prihlásenie bolo úspešné
+    {
+      "code": 0,
+      "session": "QWBUP9WcuBt6zVjPo4YOwG3d4SLBzehN"
+    }
+
+    { "code": 1, "message": "User jskalka does not exist" } // ak použivateľ s daným menom nie je registrovaný v systéme
+    { "code": 1, "message": "Wrong password" }
+  \end{minted}
+
+  \filedesc{/user/logout} (\emph{extends UserEndpoint}) - Po overení prihlásenia (\emph{UserEndpoint}) invaliduje session použivateľa.
+
+  \begin{minted}{json}
+    // príklad vstupu
+    { "session": "QWBUP9WcuBt6zVjPo4YOwG3d4SLBzehN" } 
+
+    { "code": 0 } // výstup ak odhlásenie bolo úspešné
+  \end{minted}
+
+  \filedesc{/user/info} (\emph{extends UserEndpoint}) - Ak je používateľ prihlásený, vráti informácie o používateľovy.
+
+  \begin{minted}{json}
+    // príklad vstupu
+    { "session": "QWBUP9WcuBt6zVjPo4YOwG3d4SLBzehN" } 
+
+    {
+      "code": 0,
+      "id": 1,
+      "username": "jskalka",
+      "displayname": "Ján Skalka"
+    }
+  \end{minted}
+
+  \filedesc{/user/createroom} (\emph{extends UserEndpoint}) - Vytvorí miestnosť podla parametrov \emph{name} a \emph{config} poskytnutých na vstupe. Parameter \emph{config} je string obsahujúci \emph{JSON} ktorý bude poskytnutý aplikácií \emph{Client} pri pripojení do miestnosti. Ak nie je poskytnutý názov miestnosti, vytvorí sa z \emph{displayname} používaťeľa ("Ján Skalka's room").
+
+  \begin{minted}{json}
+    // príklad vstupu
+    {
+      "session": "QWBUP9WcuBt6zVjPo4YOwG3d4SLBzehN",
+      "name": "Python Test - sk. 1",
+      "config": "{ ... }" // konfigurácia pre Client aplikáciu
+    }
+
+    // príklad výstupu
+    {
+      "id": 1,
+      "name": "Python Test - sk. 1",
+      "join_code": "jxCzW8",
+      "watch_code": "oSWnHmyKgz32"
+    }
+
+    // ak nebola poskytnutá konfigurácia
+    { "code": 1, "message": "No config provided" }
+  \end{minted}
+
+  
+  \filedesc{/user/getrooms} (\emph{extends UserEndpoint}) - Ak je používateľ prihlásený, vráti informácie o miestnostiach ku ktorým má prístup.
+
+  \begin{minted}{json}
+    // príklad vstupu
+    { "session": "QWBUP9WcuBt6zVjPo4YOwG3d4SLBzehN" } 
+
+    // príklad výstupu
+    {
+      "code": 0,
+      "rooms": [
+        {
+          "id": 1,
+          "name": "Python Test - sk. 1",
+          "join_code": "jxCzW8",
+          "watch_code": "oSWnHmyKgz32"
+        },
+        {
+          "id": 4,
+          "name": "JavaFX Test - sk. 2",
+          "join_code": "2Gos11",
+          "watch_code": "PwUZa1mkK9he"
+        }
+      ]
+    }
+  \end{minted}
+  
+  \filedesc{/user/getclients} (\emph{extends WatchEndpoint}) - Vráti informácie o klientoch pripojených do miestnosti.
+
+  \begin{minted}{json}
+    // príklad vstupu
+    {
+      "session": "QWBUP9WcuBt6zVjPo4YOwG3d4SLBzehN",
+      "watch_code": "oSWnHmyKgz32",
+    }
+
+    // príklad výstupu
+    {
+      "code": 0,
+      "clients": [
+        {
+          "id": 1,
+          "ip_address": "129.11.55.12",
+          "name": "Jozef Komáromy",
+          "state": "{ ... }" // JSON string, obsahuje stav klienta
+        },
+        {
+          "id": 5,
+          "ip_address": "129.11.55.13",
+          "name": "Dominik Vrana",
+          "state": "{ ... }"
+        },
+      ]
+    }
+  \end{minted}
+  
+  \filedesc{/user/getevents} (\emph{extends WatchEndpoint}) - Vráti eventy z tabuliek \emph{room{\_}event} a \emph{client{\_}event} pre sledovanú miestnosť, filtrované podľa parametrov requestu. 
+  \begin{quote}
+  \filedesc{client{\_}id} - obmedzuje požiadavku iba na eventy týkajúce sa daného klienta
+
+  \filedesc{last{\_}room{\_}event{\_}id} - určuje posledné \emph{id} udalosti miestnosti ktorú už používateľ má. Ak je jeho hodnota \emph{-1}, vrátia sa všetky eventy. Ak nie je tento parameter poskytnutý, nevrátia sa žiadne eventy miestnosti.
+
+  \filedesc{last{\_}client{\_}event{\_}id} - určuje posledné \emph{id} udalosti klienta ktorú už používateľ má. Ak je jeho hodnota \emph{-1}, vrátia sa všetky eventy. Ak nie je tento parameter poskytnutý, nevrátia sa žiadne eventy klienta.
+  \end{quote} 
+
+  \begin{minted}{json}
+    // príklad vstupu
+    {
+      "session": "QWBUP9WcuBt6zVjPo4YOwG3d4SLBzehN",
+      "watch_code": "oSWnHmyKgz32",
+      "last_room_event_id": 20,
+      "last_client_event_id": 92,
+      "client_id": 5
+    }
+
+    // príklad výstupu
+    {
+      "code": 0,
+      "client_events": [
+        {
+          "id": 102,
+          "created": "2024-04-27 15:06:07"
+          "data": "{ ... }" // JSON string obsahujuci podrobnosti o evente
+          "client_id": 5,
+          "room_id": 2
+        },
+        {
+          "id": 110,
+          "created": "2024-04-27 15:06:23"
+          "data": "{ ... }"
+          "client_id": 5,
+          "room_id": 2
+        }
+      ],
+      "room_events": [
+        {
+          "id": 22,
+          "created": "2024-04-27 15:06:55"
+          "data": "{ ... }"
+          "client_id": 5,
+          "room_id": 2
+        }
+      ]
+    }
+  \end{minted}
+  
+  \filedesc{/user/message} (\emph{extends UserEndpoint}) - Pošle správu klientovy. Správa pre klienta je poskytnutá ako \emph{JSON} string v parametri \emph{data}. Taktiež je potrebné poskytnúť id klienta pre ktorého je správa určená v \emph{client{\_}id}
+  
+  \begin{minted}{json}
+    // príklad vstupu
+    {
+      "session": "QWBUP9WcuBt6zVjPo4YOwG3d4SLBzehN",
+      "client_id": 2,
+      "data": "{ ... }" // JSON string obsahujúci správu
+    }
+
+    { "code": 0 } // výstup ak poslanie správy prebehlo úspešne
+    { "code": 1, "message": "Bad input" } // ak nebol poskytnutý požadovaný parameter
+  \end{minted}
+  
+  Príklad komunikácie s klientom:
+  \begin{enumerate}
+    \item klient zmení stav na \mintinline{json}{{ "locked": true }}
+    \item supervisor sa o tomto dozvie po načítaní stavu klienta cez \emph{getclients}
+    \item odošle klientovy správu \mintinline{json}{{ "action": "unlock" }}
+    \item klient načíta a spracuje správu
+    \item klient zmení stav na \mintinline{json}{{ "locked": false }}
+    \item u supervisora sa zobrazí zmena po načítaní stavu klienta
+  \end{enumerate}
+
+\end{quote}
+
+\filedesc{/client} - Endpointy cez ktoré komunikuje aplikácia \emph{Client} so serverom, a učiteľom.
+
+\begin{quote}
+  \filedesc{/client/joinroom} (extends Endpoint) - Pripojenie klienta do miestnosti. Parameter \emph{name} je meno študenta. Parameter \emph{join{\_}code} je prihlasovací kód ktorý študent fyzicky obdržal od učiteľa. Podľa \emph{join{\_}code} sa vyhľadá miestnosť a študent bude do nej pridaný. Vracia \emph{secret} - token ktorým klient preukazuje svoju totožnosť pri ďaľších requestoch na server, \emph{room{\_}name} - názov miestnosti, a \emph{config} - string obsahujúci konfiguráciu pre klienta v formáte \emph{JSON}.
+
+  \begin{minted}{json}
+    // príklad vstupu
+    {
+      "name": "Jozef Komaromy",
+      "join_code": "jxCzW8"
+    }
+
+    // príklad výstupu
+    {
+      "secret": "0aUHzmL4YgE0",
+      "room_name": "Python Test - sk. 1",
+      "config": "{ ... }" // JSON string obsahujúci konfiguráciu klienta
+    }
+  \end{minted}
+
+  \filedesc{/client/pushstate} (extends ClientEndpoint) - Klient posiela na server svoj aktuálny stav. Parameter \emph{state} je string obsahujúci stav clienta vo formáte \emph{JSON}
+
+  \begin{minted}{json}
+    // príklad vstupu
+    {
+      "secret": "0aUHzmL4YgE0",
+      "state": "{ ... }" // JSON string obsahujúci stav klienta
+    }
+
+    { "code": 0 } // ak bol stav aktualizovany úspešne
+    { "code": 1, "message": "Bad input" } // ak nebol poskytnutý parameter state
+  \end{minted}
+  
+  \filedesc{/client/pushevent} (extends ClientEndpoint) - Klient posiela na server event. Parameter \emph{data} je string obsahujúci event vo formáte \emph{JSON}
+
+  \begin{minted}{json}
+    // príklad vstupu
+    {
+      "secret": "0aUHzmL4YgE0",
+      "data": "{ ... }" // JSON string obsahujúci event
+    }
+
+    { "code": 0 } // ak bol event pridaný do databázy úspešne
+    { "code": 1, "message": "Bad input" } // ak nebol poskytnutý parameter data
+  \end{minted}
+
+  \filedesc{/client/getmessage} - Vráti klientovy správy jemu adresované. Parameter \emph{last{\_}id} je \emph{id} poslednej správy, ktorú má klient. Ak \emph{last{\_}id = -1}, server vráti všetky správy pre klienta.
+
+  \begin{minted}{json}
+    // príklad vstupu
+    {
+      "secret": "0aUHzmL4YgE0",
+      "last_id": 18
+    }
+
+    // príklad výstupu
+    { 
+      "code": 0,
+      "messages": [
+        {
+          "id": 20,
+          "client_id": 2,
+          "data": "{ ... }" // správa vo formáte JSON
+        },
+        {
+          "id": 25,
+          "client_id": 2,
+          "data": "{ ... }"
+        }
+      ]
+    }
+
+    { "code": 1, "message": "Bad input" } // ak nebol poskytnutý parameter last_id
+  \end{minted}
+  
+
+\end{quote}
 
 \subsection{Supervisor}
+
 
 
 \end{document}
