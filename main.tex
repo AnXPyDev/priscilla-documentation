@@ -60,6 +60,24 @@ Webová aplikácia ktorá učiteľovy poskytuje zobrazenie informácií získan�
 
 Aplikácia klienta je implementovaná v programovacom jazyku \emph{TypeScript} (kompilovaný do \emph{JavaScript}). Používa \emph{UI} framework \emph{Electron} a frontendový framework \emph{Vue}. Pre komunikáciu so serverom je použitá knižnica \emph{Axios}.
 
+\subsubsection{Konfigurácia}
+
+Konfigurácia klienta prebieha po úspešnom prihlásení do miestnosti. Aplikácia klienta od serveru obdrží konfiguráciu vo formáte JSON. Podľa tejto konfigurácie následne vytvorý webové profily, aplikácie, nakonfiguruje bezpečnostné moduly, a pod.
+
+\subsubsection*{Možnosti konfigurácie}
+
+\filedesc{name} (\emph{name}) - názov konfigurácie
+
+\filedesc{debug} (\emph{boolean}) - zapne debug mód. Debug mód slúži pre testovanie aplikácie klienta, ak je zapnutý, klient môže sám vypnúť kiosk mód, odomknúť aplikáciu, atď.
+
+\filedesc{kiosk} (\emph{boolean}) - zapne tzv. kiosk mód, v ktorom bude okno klienta fullscreen, vždy na vrchu, a pod.
+
+\filedesc{integrity} (\emph{object}) - nastavenia pre manažéra bezpečnosti (\emph{IntegrityManager}) a moduly bezpečnosti (\emph{IntegrityModule}).
+
+\filedesc{integrity.modules} (\emph{object}) - konfiguracia pre moduly bezpečnosti.
+
+\filedesc{integrity.modules.(module\_name)} (\emph{object}) - ak sa nachádza meno bezpečnostného modulu ako klúč v objekte \emph{integrity.modules}, modul bude načítaný a ako konfigurácia mu bude poskytnutá hodnota pod týmto klúčom.
+
 \subsection{Vanguard}
 
 \subsubsection{Technológie}
